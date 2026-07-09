@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en" style="height: 100%">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body style="height: 100%; margin: 0">
+    <!--容器，后面脚本会根据此容器id放入echart-->
+    <div id="container" style="height: 100%"></div>
+
+    <!--引入js库-->
+    <script src="js/echarts.js"></script>
+    <script type="text/javascript">
+      //初始化ECharts实例
+      var dom = document.getElementById("container");
+      var myChart = echarts.init(dom);
+      // ECharts基础配置:折线图
+      var option;
+      option = {
+        xAxis: {
+          type: "category",
+          data: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        },
+        yAxis: {
+          type: "value",
+        },
+        series: [
+          {
+            data: [150, 230, 224, 218, 135, 147, 260],
+            type: "line",
+          },
+        ],
+      };
+
+      //显示
+      myChart.setOption(option);
+
+      // 窗口大小自适应
+      window.onresize = function () {
+        myChart.resize();
+      };
+    </script>
+    <script>
+      //==================UE WebUI 通信助手函数=====================
+      ("object" != typeof ue && (ue = {}),
+        (uuidv4 = function () {
+          return "10000000-1000-4000-8000-100000000000".replace(
+            /[018]/g,
+            function (t) {
+              return (
+                t ^
+                (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (t / 4)))
+              ).toString(16);
+            },
+          );
+        }),
+        (ue5 = (function (r) {
+          return "object" != typeof ue.interface ||
+            "function" != typeof ue.interface.broadcast
+            ? ((ue.interface = {}),
+              function (t, e, n, o) {
+                var u, i;
+                "string" == typeof t &&
+                  ("function" == typeof e && ((o = n), (n = e), (e = null)),
+                  (u = [t, "", r(n, o)]),
+                  void 0 !== e && (u[1] = e),
+                  (i = encodeURIComponent(JSON.stringify(u))),
+                  "object" == typeof history &&
+                  "function" == typeof history.pushState
+                    ? (history.pushState({}, "", "#" + i),
+                      history.pushState({}, "", "#" + encodeURIComponent("[]")))
+                    : ((document.location.hash = i),
+                      (document.location.hash = encodeURIComponent("[]"))));
+              })
+            : ((i = ue.interface),
+              (ue.interface = {}),
+              function (t, e, n, o) {
+                var u;
+                "string" == typeof t &&
+                  ("function" == typeof e && ((o = n), (n = e), (e = null)),
+                  (u = r(n, o)),
+                  void 0 !== e
+                    ? i.broadcast(t, JSON.stringify(e), u)
+                    : i.broadcast(t, "", u));
+              });
+          var i;
+        })(function (t, e) {
+          if ("function" != typeof t) return "";
+          var n = uuidv4();
+          return (
+            (ue.interface[n] = t),
+            setTimeout(
+              function () {
+                delete ue.interface[n];
+              },
+              1e3 * Math.max(1, parseInt(e) || 0),
+            ),
+            n
+          );
+        })));
+    </script>
+    <script>
+      // ===================== 供UE调用的【数据更新函数】（UE→ECharts） =====================
+      // 挂载到ue.interface对象上，UE可通过Call节点调用此函数，参数为JSON格式的图表数据
+      ue.interface.updateEChartsData = function (chartData) {
+        // chartData是UE传递的JSON对象，直接更新ECharts配置
+        myChart.setOption({
+          series: [
+            {
+              data: chartData[0],
+              type: "line",
+            },
+          ],
+        });
+
+        // 可选：将更新结果回传给UE（前端→UE）
+        var res = { status: chartData, time: new Date().getTime() };
+        ue5("ECharts_Updated", JSON.stringify(res));
+      };
+
+      // ===================== ECharts交互事件→UE 数据发送（核心：ECharts→UE） =====================
+      // 点击ECharts图表，将点击的节点数据发送给UE
+      myChart.on("click", function (params) {
+        // 构造要发送给UE的JSON数据
+        var clickData = {
+          chartType: "line",
+          seriesName: params.seriesName,
+          dataIndex: params.dataIndex,
+          value: params.value,
+          name: params.name,
+        };
+        // 通过ue5()发送给UE，事件名：ECharts_Click（UE端需监听此名称）
+        ue5("ECharts_Click", JSON.stringify(clickData), function(v){
+          myChart.setOption({
+          series: [
+            {
+              data: [4,5,v],
+              type: "line",
+            },
+          ],
+        });
+        }, 3);
+      });
+    </script>
+  </body>
+</html>

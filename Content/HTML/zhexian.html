@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UE-ECharts 同步</title>
+    <!-- 引入ECharts JS（建议本地引入，避免网络依赖） -->
+    <script src="js/echarts.js"></script>
+    <script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+    <script>
+      // ===================== 1. 必加：UE WebUI 通信助手函数（参考PDF 14-15页） =====================
+      if (typeof ue != "object" || typeof ue.interface != "object") {
+        if (typeof ue != "object") ue = {};
+        ue.interface = {};
+        ue.interface.broadcast = function (name, data) {
+          if (typeof name != "string") return;
+          var args = [name, ""];
+          if (typeof data != "undefined") args[1] = data;
+          var hash = encodeURIComponent(JSON.stringify(args));
+          if (
+            typeof history == "object" &&
+            typeof history.pushState == "function"
+          ) {
+            history.pushState({}, "", "#" + hash);
+            history.pushState({}, "", "#" + encodeURIComponent("[]"));
+          } else {
+            document.location.hash = hash;
+            document.location.hash = encodeURIComponent("[]");
+          }
+        };
+      }
+      // 全局ue5函数，简化调用：ue5(事件名, 数据)
+      var ue5 = ue.interface.broadcast;
+    </script>
+    <style>
+      /* 图表容器占满WebUI窗口，和UE WebUI组件全屏匹配 */
+      #chartContainer {
+        width: 100vw;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        background: rgba(0, 0, 0, 0); /* 半透明，适配UE透明UI需求 */
+      }
+    </style>
+    <script>
+      // ===================== 3. 预留供UE调用的【数据更新函数】（核心：UE→ECharts） =====================
+      // 挂载到ue.interface对象上，UE可通过Call节点调用此函数，参数为JSON格式的图表数据
+      ue.interface.updateEChartsData = function (chartData) {
+        // chartData是UE传递的JSON对象，直接更新ECharts配置
+        myChart.setOption({
+          //xAxis: { data: chartData.xData },
+          series: [
+            { name: "实时数据1", data: chartData[0] },
+            { name: "实时数据2", data: chartData[1] },
+          ],
+        });
+        // 可选：将更新结果回传给UE（前端→UE）
+
+        var res = { status: chartData, time: new Date().getTime() };
+        ue5("ECharts_Updated", JSON.stringify(res));
+      };
+    </script>
+  </head>
+  <body style="margin: 0; padding: 0">
+    <div id="chartContainer"></div>
+    <!-- <p id="fpsMeter">0 FPS</p> -->
+    <script>
+      // ===================== 2. 初始化ECharts实例 =====================
+      var chartDom = document.getElementById("chartContainer");
+      var myChart = echarts.init(chartDom);
+      // ECharts基础配置（可自定义，如折线图、柱状图、饼图）
+      var option = {
+        title: {
+          text: "Stacked Area Chart",
+        },
+        tooltip: {
+          trigger: "axis",
+          axisPointer: {
+            type: "cross",
+            label: {
+              backgroundColor: "#6a7985",
+            },
+          },
+        },
+        legend: {
+          data: ["实时数据1", "实时数据2"],
+          textStyle: { color: "#fff" },
+        },
+        xAxis: [
+          {
+            type: "category",
+            boundaryGap: false,
+            data: ["Mon", "Tue", "Wed", "Thu", "Fri"],
+          },
+        ],
+        yAxis: [
+          {
+            type: "value",
+          },
+        ],
+        series: [
+          { name: "实时数据1", type: "line", data: [3, 5, 4, 56, 0] },
+          { name: "实时数据2", type: "line", data: [7, 4, 1, 3, 4] },
+        ],
+      };
+      myChart.setOption(option);
+
+      // ===================== 4. ECharts交互事件→UE 数据发送（核心：ECharts→UE） =====================
+      // 示例：点击ECharts图表，将点击的节点数据发送给UE
+      myChart.on("click", function (params) {
+        // 构造要发送给UE的JSON数据
+        var clickData = {
+          chartType: "line",
+          seriesName: params.seriesName,
+          dataIndex: params.dataIndex,
+          value: params.value,
+          name: params.name,
+        };
+        // 通过ue5()发送给UE，事件名：ECharts_Click（UE端需监听此名称）
+        ue5("ECharts_Click", JSON.stringify(clickData));
+      });
+
+      // 窗口大小自适应
+      window.onresize = function () {
+        myChart.resize();
+      };
+    </script>
+  </body>
+</html>
